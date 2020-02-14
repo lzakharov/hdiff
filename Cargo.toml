@@ -1,0 +1,9 @@
+[package]
+name = "hdiff"
+version = "0.1.0"
+authors = ["Lev Zakharov <l.j.zakharov@gmail.com>"]
+edition = "2018"
+description = "Implementation of the Paul Heckel diff algorithm."
+license = "MIT"
+
+[dependencies]
