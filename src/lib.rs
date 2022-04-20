@@ -163,7 +163,7 @@ fn pass6<T: Eq>(old: &[T], new: &[T], oa: Array, na: Array) -> Difference {
                     result.push(Patch::Update(i));
                 }
 
-                if j + offset - delete_offsets[i] != i {
+                if j + offset - delete_offsets[j] != i {
                     result.push(Patch::Move(j, i));
                 }
             }
@@ -200,6 +200,15 @@ mod tests {
     }
 
     #[test]
+    fn b_ab() {
+        let old = vec!["b"];
+        let new = vec!["a", "b"];
+        let want = vec![Create(0)];
+
+        assert_eq!(want, diff(&old, &new));
+    }
+
+    #[test]
     fn simple_swap() {
         let old = vec!["a", "b"];
         let new = vec!["b", "a"];
@@ -222,6 +231,44 @@ mod tests {
         let old = vec!["a", "b"];
         let new = vec!["a"];
         let want = vec![Delete(1)];
+
+        assert_eq!(want, diff(&old, &new));
+    }
+
+    #[test]
+    fn a_mass_much_writing() {
+        let old = vec!["a", "mass", "of", "latin", "words",
+                       "falls", "upon", "the", "relevant", "facts",
+                       "like", "soft", "snow", ",", "covering",
+                       "up", "the", "details", "."];
+        let new = vec!["much", "writing", "is", "like", "snow",
+                       ",", "a", "mass", "of", "long",
+                       "words", "and", "phrases", "falls", "upon",
+                       "the", "relevant", "facts", "covering", "up",
+                       "the", "details", "."];
+        let want = vec![Delete(3), Delete(11), Create(0), Create(1), Create(2),
+                        Move(10, 3), Move(12, 4), Move(13, 5), Move(0, 6), Move(1, 7),
+                        Move(2, 8), Create(9), Move(4, 10), Create(11), Create(12),
+                        Move(5, 13), Move(6, 14), Move(7, 15), Move(8, 16), Move(9, 17)];
+
+        assert_eq!(want, diff(&old, &new));
+    }
+
+    #[test]
+    fn much_writing_a_mass() {
+        let old = vec!["much", "writing", "is", "like", "snow",
+                       ",", "a", "mass", "of", "long",
+                       "words", "and", "phrases", "falls", "upon",
+                       "the", "relevant", "facts", "covering", "up",
+                       "the", "details", "."];
+        let new = vec!["a", "mass", "of", "latin", "words",
+                       "falls", "upon", "the", "relevant", "facts",
+                       "like", "soft", "snow", ",", "covering",
+                       "up", "the", "details", "."];
+        let want = vec![Delete(0), Delete(1), Delete(2), Delete(9), Delete(11),
+                        Delete(12), Move(6, 0), Move(7, 1), Move(8, 2), Create(3),
+                        Move(10, 4), Move(13, 5), Move(14, 6), Move(15, 7), Move(16, 8),
+                        Move(17, 9), Move(3, 10), Create(11), Move(4, 12), Move(5, 13)];
 
         assert_eq!(want, diff(&old, &new));
     }
