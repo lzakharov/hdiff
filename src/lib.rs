@@ -61,15 +61,23 @@ pub enum Patch {
 type Table<T> = HashMap<T, TableEntry>;
 
 struct TableEntry {
-    nc: usize,
-    oc: usize,
-    olno: usize,
+    nc: usize,   // number of copies of this line in new file
+    oc: usize,   // number of copies of this line in old file
+    olno: usize, // line number in the old file
 }
 
 type Array = Vec<Entry>;
 
 type Entry = Option<usize>;
 
+//
+// Pass 1 comprises the following:
+// (a) each line i of file N is read in sequence;
+// (b) a symbol table entry for each line i is
+//     created if it does not already exist;
+// (c) NC for the line's symbol table entry is incremented; and
+// (d) NA[i] is set to point to the symbol table entry of line i.
+//
 fn pass1<'a, T: Eq + Hash>(new: &'a [T], table: &mut Table<&'a T>) {
     for x in new.iter() {
         match table.get_mut(x) {
@@ -83,6 +91,11 @@ fn pass1<'a, T: Eq + Hash>(new: &'a [T], table: &mut Table<&'a T>) {
     }
 }
 
+//
+// Pass 2 is identical to pass 1 except that it acts on
+// file O, array OA, and counter OC, and OLNO for the
+// symbol table entry is set to the line's number.
+//
 fn pass2<'a, T: Eq + Hash>(old: &'a [T], table: &mut Table<&'a T>) {
     for (i, x) in old.iter().enumerate() {
         match table.get_mut(x) {
@@ -97,6 +110,21 @@ fn pass2<'a, T: Eq + Hash>(old: &'a [T], table: &mut Table<&'a T>) {
     }
 }
 
+//
+// In pass 3 we use observation #1 and process only
+// those lines having NC = OC = 1. Since each represents
+// (we assume) the same unmodified line, for each we
+// replace the symbol table pointers in NA and OA by
+// the number of the line in the other file. For example,
+// if NA[i] corresponds to such a line, we look NA[i] up
+// in the symbol table and set NA[i] to OLNO and
+// OA[OLNO] to i. In pass 3 we also "find" unique
+// virtual lines immediately before the first and immediately
+// after the last lines of the files.
+//
+// Observation #1: A line that occurs once and only once in each
+// file must be the same line (unchanged but possibly moved).
+//
 fn pass3<T: Eq + Hash>(new: &[T], table: Table<&T>, oa: &mut Array, na: &mut Array) {
     for i in 0..na.len() {
         let tx = &table[&new[i]];
@@ -107,6 +135,17 @@ fn pass3<T: Eq + Hash>(new: &[T], table: Table<&T>, oa: &mut Array, na: &mut Arr
     }
 }
 
+//
+// In pass 4, we apply observation #2 and process each
+// line in NA in ascending order: If NA[i] points to
+// OA[j] and NA[i + 1] and OA[j + 1] contain identical
+// symbol table entry pointers, then OA[j + 1] is set to
+// line i + 1 and NA[i + 1] is set to line j + 1.
+//
+// Observation #2: If in each file immediately adjacent to a "found"
+// line pair there are lines identical to each other, these
+// lines must be the same line.
+//
 fn pass4<T: Eq>(old: &[T], new: &[T], oa: &mut Array, na: &mut Array) {
     if na.is_empty() {
         return;
@@ -126,6 +165,13 @@ fn pass4<T: Eq>(old: &[T], new: &[T], oa: &mut Array, na: &mut Array) {
     }
 }
 
+//
+// In pass 5, we also apply observation #2 and process
+// each entry in descending order: if NA[i] points to
+// OA[j] and NA[i - 1] and OA[j - 1] contain identical
+// symbol table pointers, then NA[i - 1] is replaced by
+// j - 1 and OA[j - 1] is replaced by i - 1.
+//
 fn pass5<T: Eq>(old: &[T], new: &[T], oa: &mut Array, na: &mut Array) {
     for i in (1..na.len()).rev() {
         if let Some(j) = na[i] {
@@ -141,6 +187,17 @@ fn pass5<T: Eq>(old: &[T], new: &[T], oa: &mut Array, na: &mut Array) {
     }
 }
 
+//
+// Array NA now contains the information needed to
+// list (or encode) the differences: If NA[i] points to a
+// symbol table entry, then we assume that line i is an
+// insert, and we can flag it as new text. If it points to
+// OA[j], but NA[i + 1] does not point to OA[j + 1],
+// then line i is at the boundary of a deletion or block
+// move and can be flagged as such. In the final pass, the
+// file is output with its changes described in a form
+// appropriate to a particular application environment.
+//
 fn pass6<T: Eq>(old: &[T], new: &[T], oa: Array, na: Array) -> Difference {
     let mut result = Difference::new();
     let mut delete_offsets = Vec::with_capacity(oa.len());
